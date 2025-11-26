@@ -123,6 +123,27 @@ export default function Home() {
     return handleMintWithBackend();
   };
 
+  // Auto-connect Farcaster wallet on load when SDK is present
+  useEffect(() => {
+    const attempt = async () => {
+      try {
+        if (connectStatus !== "idle" || connectedAddress) return;
+        const sdk = sdkRef.current;
+        if (sdk?.wallet?.connect) {
+          const res = await sdk.wallet.connect();
+          const addr = res?.address || (Array.isArray(res?.addresses) ? res.addresses[0] : undefined);
+          if (addr) {
+            setConnectedAddress(addr);
+            setConnectStatus("connected");
+          }
+        }
+      } catch (err) {
+        console.warn("Auto-connect skipped", err);
+      }
+    };
+    attempt();
+  }, [connectStatus, connectedAddress]);
+
   const handleMintWithBackend = async () => {
     setLoading(true);
     setError(null);
