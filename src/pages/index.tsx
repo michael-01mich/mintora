@@ -1,0 +1,567 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import Head from "next/head";
+import type { ProgressState } from "../lib/progressStore";
+// @ts-ignore SDK types may not ship yet; keep import to align with docs.
+import { MiniAppSDK } from "@farcaster/miniapp-sdk";
+import { ethers } from "ethers";
+
+type ApiStateResponse = {
+  userId: string;
+  signerAddress?: string;
+  progress: { state: ProgressState };
+};
+
+const quizOptions = ["Bitcoin", "Solana", "Ethereum", "Tron"];
+const mintMode = process.env.NEXT_PUBLIC_MINT_MODE || "backend"; // "backend" uses server minter (sepolia), "wallet" uses user wallet (mainnet)
+const badgeAddress = process.env.NEXT_PUBLIC_BADGE_ADDRESS;
+const targetChainId = Number(process.env.NEXT_PUBLIC_TARGET_CHAIN_ID || (mintMode === "wallet" ? 8453 : 84532));
+
+const badgeAbi = ["function mint() public returns (uint256)"];
+
+export default function Home() {
+  const sdkRef = useRef<any>(null);
+  const [progress, setProgress] = useState<ProgressState>("NOT_STARTED");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [retry, setRetry] = useState(false);
+  const [userId, setUserId] = useState<string>("");
+  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+  const [connectStatus, setConnectStatus] = useState<"idle" | "connecting" | "connected">("idle");
+
+  useEffect(() => {
+    try {
+      const sdk = new MiniAppSDK();
+      sdkRef.current = sdk;
+      sdk.actions.ready();
+    } catch (err) {
+      console.warn("MiniApp SDK init failed (likely outside Farcaster)", err);
+    }
+  }, []);
+
+  const fetchState = async () => {
+    try {
+      const res = await fetch("/api/state");
+      const data = (await res.json()) as ApiStateResponse;
+      setProgress(data.progress.state);
+      setUserId(data.userId);
+      // If the Farcaster signer is present, prefer that as the connected address.
+      if (data.signerAddress) {
+        setConnectedAddress(data.signerAddress);
+        setConnectStatus("connected");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Unable to load state");
+    }
+  };
+
+  useEffect(() => {
+    fetchState();
+  }, []);
+
+  const handleContinue = async () => {
+    setLoading(true);
+    setError(null);
+    const res = await fetch("/api/intro", { method: "POST" });
+    const data = await res.json();
+    if (data?.progress?.state) setProgress(data.progress.state);
+    setLoading(false);
+  };
+
+  const handleAnswer = async (answer: string) => {
+    setLoading(true);
+    setError(null);
+    const res = await fetch("/api/quiz", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answer })
+    });
+    const data = await res.json();
+    if (data.correct) {
+      setProgress(data.progress.state);
+      setRetry(false);
+    } else {
+      setRetry(true);
+    }
+    setLoading(false);
+  };
+
+  const handleConnectWallet = async () => {
+    setError(null);
+    setConnectStatus("connecting");
+    try {
+      const sdk = sdkRef.current;
+      if (sdk?.wallet?.connect) {
+        const res = await sdk.wallet.connect();
+        const addr = res?.address || (Array.isArray(res?.addresses) ? res.addresses[0] : undefined);
+        if (addr) {
+          setConnectedAddress(addr);
+          setConnectStatus("connected");
+          return;
+        }
+      }
+      // Fallback for local dev outside Farcaster
+      const manual = window.prompt("Enter a wallet address for local testing:");
+      if (manual) {
+        setConnectedAddress(manual);
+        setConnectStatus("connected");
+      } else {
+        setConnectStatus("idle");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Unable to connect wallet. Try again.");
+      setConnectStatus("idle");
+    }
+  };
+
+  const handleMint = async () => {
+    if (mintMode === "wallet") {
+      return handleMintWithWallet();
+    }
+    return handleMintWithBackend();
+  };
+
+  const handleMintWithBackend = async () => {
+    setLoading(true);
+    setError(null);
+    const res = await fetch("/api/mint", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address: connectedAddress })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setProgress(data.progress.state);
+      setTxHash(data.txHash);
+    } else {
+      setError(data.error || "Mint failed");
+    }
+    setLoading(false);
+  };
+
+  const handleMintWithWallet = async () => {
+    if (!connectedAddress) {
+      setError("Connect a wallet first.");
+      return;
+    }
+    if (!badgeAddress) {
+      setError("Badge contract address is missing.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const iface = new ethers.Interface(badgeAbi);
+      const data = iface.encodeFunctionData("mint");
+      const txRequest = {
+        to: badgeAddress,
+        data,
+        value: "0x0"
+      };
+
+      const sdk = sdkRef.current;
+      if (sdk?.wallet?.switchChain) {
+        await sdk.wallet.switchChain({ chainId: targetChainId });
+      }
+      if (sdk?.wallet?.sendTransaction) {
+        const sent = await sdk.wallet.sendTransaction(txRequest);
+        const hash = typeof sent === "string" ? sent : sent?.hash;
+        await markProgressAsMinted(hash);
+        setTxHash(hash || null);
+        setProgress("NFT_MINTED");
+        setLoading(false);
+        return;
+      }
+
+      // Fallback to injected wallet (e.g., for local browser testing)
+      if (typeof window !== "undefined" && (window as any).ethereum) {
+        const provider = new ethers.BrowserProvider((window as any).ethereum);
+        const signer = await provider.getSigner();
+        const network = await provider.getNetwork();
+        if (network.chainId !== BigInt(targetChainId)) {
+          try {
+            await (window as any).ethereum.request({
+              method: "wallet_switchEthereumChain",
+              params: [{ chainId: "0x" + targetChainId.toString(16) }]
+            });
+          } catch (switchErr) {
+            console.warn("Chain switch failed", switchErr);
+          }
+        }
+        const tx = await signer.sendTransaction(txRequest);
+        const receipt = await tx.wait();
+        const hash = receipt?.hash || tx.hash;
+        await markProgressAsMinted(hash);
+        setTxHash(hash || null);
+        setProgress("NFT_MINTED");
+        setLoading(false);
+        return;
+      }
+
+      setError("Wallet send not available in this environment.");
+    } catch (err) {
+      console.error(err);
+      setError((err as Error).message || "Mint failed");
+    }
+    setLoading(false);
+  };
+
+  const markProgressAsMinted = async (clientTxHash?: string) => {
+    try {
+      await fetch("/api/mint", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientTxHash })
+      });
+    } catch (err) {
+      console.warn("Unable to mark progress minted", err);
+    }
+  };
+
+  const handleReset = async () => {
+    setLoading(true);
+    setError(null);
+    const res = await fetch("/api/reset", { method: "POST" });
+    const data = await res.json();
+    setProgress(data.progress.state);
+    setTxHash(null);
+    setRetry(false);
+    setConnectStatus(connectedAddress ? "connected" : "idle");
+    setLoading(false);
+  };
+
+  const shareUrl = useMemo(() => {
+    const appUrl = process.env.NEXT_PUBLIC_FARCASTER_APP_URL || "";
+    const text = encodeURIComponent("I just earned the Base Beginner Badge on Base Sepolia!");
+    const embed = appUrl ? `&embeds[]=${encodeURIComponent(appUrl)}` : "";
+    return `https://warpcast.com/~/compose?text=${text}${embed}`;
+  }, []);
+
+  const explorerUrl = txHash ? `https://sepolia.basescan.org/tx/${txHash}` : undefined;
+
+  const renderIntro = () => (
+    <section>
+      <div className="eyebrow">Step 1 · Intro</div>
+      <h1>Welcome to Base 🟦</h1>
+      <p>
+        Base is a fast, secure Ethereum Layer 2 built by Coinbase.
+        <br />
+        It lets you mint NFTs, trade assets, and use apps instantly and cheaply.
+      </p>
+      <button onClick={handleContinue} disabled={loading}>
+        {loading ? "Loading..." : "Continue"}
+      </button>
+    </section>
+  );
+
+  const renderQuiz = () => {
+    if (retry) {
+      return (
+        <section>
+          <div className="eyebrow">Step 2 · Quiz</div>
+          <h2>Not quite 😅 try again.</h2>
+          <button onClick={() => setRetry(false)} disabled={loading}>
+            Try Again
+          </button>
+        </section>
+      );
+    }
+    return (
+      <section>
+        <div className="eyebrow">Step 2 · Quiz</div>
+        <h2>Base is built on which blockchain?</h2>
+        <div className="grid">
+          {quizOptions.map((opt) => (
+            <button key={opt} onClick={() => handleAnswer(opt)} disabled={loading}>
+              {opt}
+            </button>
+          ))}
+        </div>
+      </section>
+    );
+  };
+
+  const renderMint = () => (
+    <section>
+      <div className="eyebrow">Step 3 · Mint</div>
+      <h2>🎉 You Completed the Base Onboarding Journey!</h2>
+      <p>Mint your official Base Beginner Badge to commemorate your first step into Base.</p>
+      {!connectedAddress && (
+        <div className="banner">
+          <div>
+            <strong>Connect wallet</strong>
+            <div className="muted">Use Warpcast wallet or provide an address to receive the badge.</div>
+          </div>
+          <button className="ghost" onClick={handleConnectWallet} disabled={connectStatus === "connecting"}>
+            {connectStatus === "connecting" ? "Connecting..." : "Connect Wallet"}
+          </button>
+        </div>
+      )}
+      <button onClick={handleMint} disabled={loading || !connectedAddress}>
+        {loading
+          ? "Minting..."
+          : connectedAddress
+          ? mintMode === "wallet"
+            ? "Mint NFT (wallet pays gas)"
+            : "Mint NFT"
+          : "Connect wallet to mint"}
+      </button>
+      {txHash && (
+        <p className="muted">
+          Tx:{" "}
+          <a href={explorerUrl} target="_blank" rel="noreferrer">
+            {txHash.slice(0, 12)}...
+          </a>
+        </p>
+      )}
+    </section>
+  );
+
+  const renderSuccess = () => (
+    <section>
+      <div className="eyebrow">All done</div>
+      <h2>Mint Successful! 🎉</h2>
+      <div className="actions">
+        <a className="linklike" href={shareUrl} target="_blank" rel="noreferrer noopener">
+          Share on Farcaster
+        </a>
+        {explorerUrl && (
+          <a className="linklike" href={explorerUrl} target="_blank" rel="noreferrer noopener">
+            View NFT
+          </a>
+        )}
+        <button onClick={handleReset}>Start Over</button>
+      </div>
+      {txHash && (
+        <p className="muted">
+          Tx hash:{" "}
+          {explorerUrl ? (
+            <a href={explorerUrl} target="_blank" rel="noreferrer noopener">
+              {txHash}
+            </a>
+          ) : (
+            txHash
+          )}
+        </p>
+      )}
+    </section>
+  );
+
+  const renderStep = () => {
+    switch (progress) {
+      case "NOT_STARTED":
+        return renderIntro();
+      case "INTRO_COMPLETED":
+        return renderQuiz();
+      case "QUIZ_PASSED":
+        return renderMint();
+      case "NFT_MINTED":
+        return renderSuccess();
+      default:
+        return renderIntro();
+    }
+  };
+
+  return (
+    <>
+      <Head>
+        <title>Base Beginner Journey</title>
+      </Head>
+      <main>
+        <header>
+          <div className="title">
+            <span className="badge">Base Beginner Journey</span>
+            <span className="user">User: {userId || "…"}</span>
+          </div>
+          <div className="wallet">
+            {connectedAddress ? (
+              <span className="connected">
+                Wallet: {connectedAddress.slice(0, 6)}...{connectedAddress.slice(-4)}
+              </span>
+            ) : (
+              <span className="connected muted">Wallet: not connected</span>
+            )}
+            <button className="ghost" onClick={handleConnectWallet} disabled={connectStatus === "connecting"}>
+              {connectStatus === "connecting" ? "Connecting..." : connectedAddress ? "Reconnect" : "Connect Wallet"}
+            </button>
+          </div>
+        </header>
+        {error && <p className="error">{error}</p>}
+        {renderStep()}
+      </main>
+      <style jsx>{`
+        main {
+          min-height: 100vh;
+          font-family: "Space Grotesk", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          padding: 32px 24px 48px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          max-width: 780px;
+          margin: 0 auto;
+          color: #0b1b2b;
+          background: radial-gradient(circle at 20% 20%, rgba(0, 110, 255, 0.08), transparent 30%),
+            radial-gradient(circle at 80% 0%, rgba(74, 0, 255, 0.08), transparent 28%),
+            #f6f8ff;
+        }
+        section {
+          background: linear-gradient(180deg, #f0f6ff 0%, #ffffff 100%);
+          border: 1px solid #d3ddf3;
+          border-radius: 18px;
+          padding: 22px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          box-shadow: 0 16px 40px rgba(0, 76, 255, 0.12);
+        }
+        h1,
+        h2 {
+          margin: 0;
+          letter-spacing: -0.02em;
+        }
+        p {
+          margin: 0;
+          line-height: 1.5;
+          color: #1b3550;
+        }
+        .grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+          gap: 10px;
+        }
+        button {
+          padding: 12px 14px;
+          border-radius: 14px;
+          border: 1px solid #0f4cfa;
+          background: linear-gradient(135deg, #0f4cfa 0%, #0b84ff 100%);
+          color: #f9fbff;
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.05s ease, box-shadow 0.1s ease, background 0.2s ease;
+          box-shadow: 0 10px 28px rgba(15, 76, 250, 0.35);
+        }
+        button:hover {
+          transform: translateY(-1px);
+          background: linear-gradient(135deg, #0d45e0 0%, #0a76e0 100%);
+        }
+        button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none;
+          box-shadow: none;
+        }
+        .ghost {
+          background: transparent;
+          color: #0f4cfa;
+          border: 1px solid rgba(15, 76, 250, 0.35);
+          box-shadow: none;
+        }
+        header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .badge {
+          background: #0f4cfa;
+          color: #f9fbff;
+          padding: 6px 12px;
+          border-radius: 12px;
+          font-weight: 700;
+          letter-spacing: 0.01em;
+          box-shadow: 0 8px 18px rgba(15, 76, 250, 0.3);
+        }
+        .user {
+          color: #4a6b8a;
+          font-size: 14px;
+        }
+        .muted {
+          color: #4a6b8a;
+          font-size: 14px;
+        }
+        .error {
+          color: #b00020;
+          background: #ffeef1;
+          padding: 10px 12px;
+          border-radius: 10px;
+          border: 1px solid #ffc7d0;
+        }
+        .actions {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .linklike {
+          display: inline-block;
+          text-align: center;
+          text-decoration: none;
+          padding: 12px 14px;
+          border-radius: 14px;
+          border: 1px solid #0f4cfa;
+          background: linear-gradient(135deg, #0f4cfa 0%, #0b84ff 100%);
+          color: #f9fbff;
+          font-weight: 600;
+          box-shadow: 0 10px 28px rgba(15, 76, 250, 0.35);
+          transition: transform 0.05s ease, box-shadow 0.1s ease, background 0.2s ease;
+        }
+        .linklike:hover {
+          transform: translateY(-1px);
+          background: linear-gradient(135deg, #0d45e0 0%, #0a76e0 100%);
+        }
+        .wallet {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+        .connected {
+          font-size: 14px;
+          color: #0b1b2b;
+          background: #e8f1ff;
+          padding: 6px 10px;
+          border-radius: 10px;
+          border: 1px solid rgba(15, 76, 250, 0.2);
+        }
+        .title {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+        .eyebrow {
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          font-size: 12px;
+          color: #0f4cfa;
+          font-weight: 700;
+        }
+        .banner {
+          border: 1px dashed rgba(15, 76, 250, 0.5);
+          background: #eef4ff;
+          padding: 12px;
+          border-radius: 12px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+        @media (max-width: 640px) {
+          main {
+            padding: 18px;
+          }
+          button {
+            width: 100%;
+          }
+          header {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+        }
+      `}</style>
+    </>
+  );
+}

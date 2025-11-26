@@ -1,0 +1,13 @@
+node_modules
+.next
+.env
+.env.local
+artifacts
+cache
+coverage
+dist
+out
+*.log
+*.tsbuildinfo
+package-lock.json
+.DS_Store
