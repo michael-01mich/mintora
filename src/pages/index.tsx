@@ -239,7 +239,11 @@ export default function Home() {
     return `https://warpcast.com/~/compose?text=${text}${embed}`;
   }, []);
 
-  const explorerUrl = txHash ? `https://sepolia.basescan.org/tx/${txHash}` : undefined;
+  const explorerUrl = useMemo(() => {
+    if (!txHash) return undefined;
+    const baseUrl = targetChainId === 8453 ? "https://basescan.org/tx/" : "https://sepolia.basescan.org/tx/";
+    return `${baseUrl}${txHash}`;
+  }, [txHash, targetChainId]);
 
   const renderIntro = () => (
     <section>
@@ -303,9 +307,7 @@ export default function Home() {
         {loading
           ? "Minting..."
           : connectedAddress
-          ? mintMode === "wallet"
-            ? "Mint NFT (wallet pays gas)"
-            : "Mint NFT"
+          ? "Mint NFT"
           : "Connect wallet to mint"}
       </button>
       {txHash && (
