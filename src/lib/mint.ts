@@ -24,8 +24,7 @@ export async function mintBaseBeginnerBadge(toAddress: string): Promise<MintResu
     request.timeout = 45000; // increase RPC timeout to reduce request TIMEOUT errors
     const provider = new ethers.JsonRpcProvider(request, {
       chainId: BASE_SEPOLIA_CHAIN_ID,
-      name: "base-sepolia",
-      batchMaxCount: 1
+      name: "base-sepolia"
     });
     const wallet = new ethers.Wallet(DEPLOYER_PRIVATE_KEY, provider);
     const contract = new ethers.Contract(BADGE_CONTRACT_ADDRESS, badgeAbi, wallet);
