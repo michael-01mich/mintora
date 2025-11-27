@@ -30,13 +30,16 @@ export default function Home() {
   const [connectStatus, setConnectStatus] = useState<"idle" | "connecting" | "connected">("idle");
 
   useEffect(() => {
-    try {
-      const sdk = new MiniAppSDK();
-      sdkRef.current = sdk;
-      sdk.actions.ready();
-    } catch (err) {
-      console.warn("MiniApp SDK init failed (likely outside Farcaster)", err);
-    }
+    const initSdk = async () => {
+      try {
+        const sdk = new MiniAppSDK();
+        sdkRef.current = sdk;
+        await sdk.actions.ready();
+      } catch (err) {
+        console.warn("MiniApp SDK init failed (likely outside Farcaster)", err);
+      }
+    };
+    void initSdk();
   }, []);
 
   const fetchState = async () => {
