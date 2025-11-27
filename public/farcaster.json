@@ -20,6 +20,8 @@
     "ogTitle": "Base Beginner Journey",
     "ogDescription": "Complete the Base onboarding path and mint your badge.",
     "ogImageUrl": "https://mintora-dusky.vercel.app/og.png",
+    "webhookUrl": "https://mintora-dusky.vercel.app/api/webhook",
+    "screenshotUrls": ["https://mintora-dusky.vercel.app/screenshot1.png"],
     "requiredChains": ["eip155:84532", "eip155:8453"],
     "canonicalDomain": "mintora-dusky.vercel.app"
   },
@@ -39,6 +41,8 @@
     "ogTitle": "Base Beginner Journey",
     "ogDescription": "Complete the Base onboarding path and mint your badge.",
     "ogImageUrl": "https://mintora-dusky.vercel.app/og.png",
+    "webhookUrl": "https://mintora-dusky.vercel.app/api/webhook",
+    "screenshotUrls": ["https://mintora-dusky.vercel.app/screenshot1.png"],
     "requiredChains": ["eip155:84532", "eip155:8453"],
     "canonicalDomain": "mintora-dusky.vercel.app"
   }
