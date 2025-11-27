@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Head from "next/head";
 import type { ProgressState } from "../lib/progressStore";
 // @ts-ignore SDK types may not ship yet; keep import to align with docs.
-import { MiniAppSDK } from "@farcaster/miniapp-sdk";
+import { sdk as farcasterSdk } from "@farcaster/miniapp-sdk";
 import { ethers } from "ethers";
 
 type ApiStateResponse = {
@@ -32,9 +32,8 @@ export default function Home() {
   useEffect(() => {
     const initSdk = async () => {
       try {
-        const sdk = new MiniAppSDK();
-        sdkRef.current = sdk;
-        await sdk.actions.ready();
+        sdkRef.current = farcasterSdk;
+        await farcasterSdk.actions.ready();
       } catch (err) {
         console.warn("MiniApp SDK init failed (likely outside Farcaster)", err);
       }
