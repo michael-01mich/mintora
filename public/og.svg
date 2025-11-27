@@ -1,0 +1,29 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="og-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f4cfa" />
+      <stop offset="100%" stop-color="#0ab0ff" />
+    </linearGradient>
+    <linearGradient id="og-card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e8f2ff" stop-opacity="0.92" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.96" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" rx="42" fill="url(#og-bg)" />
+  <rect x="80" y="80" width="1040" height="470" rx="34" fill="url(#og-card)" stroke="#d4e4ff" stroke-width="3" />
+  <circle cx="230" cy="315" r="120" fill="#0f4cfa" opacity="0.08" />
+  <text x="440" y="230" fill="#0f4cfa" font-family="Inter, 'Segoe UI', sans-serif" font-size="64" font-weight="700">
+    Base Beginner Journey
+  </text>
+  <text x="440" y="300" fill="#0f234a" font-family="Inter, 'Segoe UI', sans-serif" font-size="32" font-weight="500">
+    Learn Base basics, pass the quiz, mint your badge.
+  </text>
+  <rect x="440" y="340" width="360" height="14" rx="7" fill="#d7e6ff" />
+  <rect x="440" y="340" width="210" height="14" rx="7" fill="#0f4cfa" />
+  <text x="440" y="395" fill="#0f4cfa" font-family="Inter, 'Segoe UI', sans-serif" font-size="28" font-weight="700">
+    Earn the Base Beginner Badge
+  </text>
+  <text x="440" y="435" fill="#1b3550" font-family="Inter, 'Segoe UI', sans-serif" font-size="22" font-weight="500">
+    Built for Farcaster Mini Apps
+  </text>
+</svg>
