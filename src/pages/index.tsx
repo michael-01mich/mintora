@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Head from "next/head";
 import type { ProgressState } from "../lib/progressStore";
-// @ts-ignore SDK types may not ship yet; keep import to align with docs.
-import { sdk as farcasterSdk } from "@farcaster/miniapp-sdk";
+import { sdk } from "@farcaster/miniapp-sdk";
 import { ethers } from "ethers";
+import { useAccount, useConnect, useSwitchNetwork, useWalletClient } from "wagmi";
+import { targetChain } from "../lib/wagmi";
 
 type ApiStateResponse = {
   userId: string;
@@ -14,43 +15,38 @@ type ApiStateResponse = {
 const quizOptions = ["Bitcoin", "Solana", "Ethereum", "Tron"];
 const mintMode = process.env.NEXT_PUBLIC_MINT_MODE || "backend"; // "backend" uses server minter (sepolia), "wallet" uses user wallet (mainnet)
 const badgeAddress = process.env.NEXT_PUBLIC_BADGE_ADDRESS;
-const targetChainId = Number(process.env.NEXT_PUBLIC_TARGET_CHAIN_ID || (mintMode === "wallet" ? 8453 : 84532));
+const targetChainId = targetChain.id;
 
 const badgeAbi = ["function mint() public returns (uint256)"];
 
 export default function Home() {
-  const sdkRef = useRef<any>(null);
   const [progress, setProgress] = useState<ProgressState>("NOT_STARTED");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [retry, setRetry] = useState(false);
-  const [userId, setUserId] = useState<string>("");
-  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
-  const [connectStatus, setConnectStatus] = useState<"idle" | "connecting" | "connected">("idle");
+  const [farcasterSigner, setFarcasterSigner] = useState<string | null>(null);
+  const autoConnectAttempted = useRef(false);
 
-  useEffect(() => {
-    const initSdk = async () => {
-      try {
-        sdkRef.current = farcasterSdk;
-        await farcasterSdk.actions.ready();
-      } catch (err) {
-        console.warn("MiniApp SDK init failed (likely outside Farcaster)", err);
-      }
-    };
-    void initSdk();
-  }, []);
+  const { address, isConnecting: isAccountConnecting } = useAccount();
+  const { connectAsync, connectors, isLoading: isConnectingWallet } = useConnect();
+  const { data: walletClient } = useWalletClient();
+  const { switchNetworkAsync } = useSwitchNetwork();
+
+  const farcasterConnector = useMemo(
+    () => connectors.find((c) => c.id === "injected") || connectors[0],
+    [connectors]
+  );
+  const primaryAddress = address || farcasterSigner;
+  const isBusyConnecting = isAccountConnecting || isConnectingWallet;
 
   const fetchState = async () => {
     try {
       const res = await fetch("/api/state");
       const data = (await res.json()) as ApiStateResponse;
       setProgress(data.progress.state);
-      setUserId(data.userId);
-      // If the Farcaster signer is present, prefer that as the connected address.
       if (data.signerAddress) {
-        setConnectedAddress(data.signerAddress);
-        setConnectStatus("connected");
+        setFarcasterSigner(data.signerAddress);
       }
     } catch (err) {
       console.error(err);
@@ -61,6 +57,22 @@ export default function Home() {
   useEffect(() => {
     fetchState();
   }, []);
+
+  useEffect(() => {
+    const attemptAutoConnect = async () => {
+      if (autoConnectAttempted.current) return;
+      if (!farcasterConnector?.ready) return;
+      try {
+        const inMiniApp = await sdk.isInMiniApp();
+        if (!inMiniApp) return;
+        autoConnectAttempted.current = true;
+        await connectAsync({ connector: farcasterConnector, chainId: targetChainId });
+      } catch (err) {
+        console.warn("Auto-connect skipped", err);
+      }
+    };
+    attemptAutoConnect();
+  }, [connectAsync, farcasterConnector]);
 
   const handleContinue = async () => {
     setLoading(true);
@@ -91,30 +103,16 @@ export default function Home() {
 
   const handleConnectWallet = async () => {
     setError(null);
-    setConnectStatus("connecting");
+    const connector = farcasterConnector;
+    if (!connector) {
+      setError("Farcaster wallet not available.");
+      return;
+    }
     try {
-      const sdk = sdkRef.current;
-      if (sdk?.wallet?.connect) {
-        const res = await sdk.wallet.connect();
-        const addr = res?.address || (Array.isArray(res?.addresses) ? res.addresses[0] : undefined);
-        if (addr) {
-          setConnectedAddress(addr);
-          setConnectStatus("connected");
-          return;
-        }
-      }
-      // Fallback for local dev outside Farcaster
-      const manual = window.prompt("Enter a wallet address for local testing:");
-      if (manual) {
-        setConnectedAddress(manual);
-        setConnectStatus("connected");
-      } else {
-        setConnectStatus("idle");
-      }
+      await connectAsync({ connector, chainId: targetChainId });
     } catch (err) {
       console.error(err);
-      setError("Unable to connect wallet. Try again.");
-      setConnectStatus("idle");
+      setError((err as Error).message || "Unable to connect wallet. Try again.");
     }
   };
 
@@ -125,34 +123,17 @@ export default function Home() {
     return handleMintWithBackend();
   };
 
-  // Auto-connect Farcaster wallet on load when SDK is present
-  useEffect(() => {
-    const attempt = async () => {
-      try {
-        if (connectStatus !== "idle" || connectedAddress) return;
-        const sdk = sdkRef.current;
-        if (sdk?.wallet?.connect) {
-          const res = await sdk.wallet.connect();
-          const addr = res?.address || (Array.isArray(res?.addresses) ? res.addresses[0] : undefined);
-          if (addr) {
-            setConnectedAddress(addr);
-            setConnectStatus("connected");
-          }
-        }
-      } catch (err) {
-        console.warn("Auto-connect skipped", err);
-      }
-    };
-    attempt();
-  }, [connectStatus, connectedAddress]);
-
   const handleMintWithBackend = async () => {
+    if (!primaryAddress) {
+      setError("Connect a wallet first.");
+      return;
+    }
     setLoading(true);
     setError(null);
     const res = await fetch("/api/mint", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address: connectedAddress })
+      body: JSON.stringify({ address: primaryAddress })
     });
     const data = await res.json();
     if (data.ok) {
@@ -165,7 +146,7 @@ export default function Home() {
   };
 
   const handleMintWithWallet = async () => {
-    if (!connectedAddress) {
+    if (!address) {
       setError("Connect a wallet first.");
       return;
     }
@@ -173,57 +154,32 @@ export default function Home() {
       setError("Badge contract address is missing.");
       return;
     }
+    if (!walletClient) {
+      setError("Wallet client is not ready yet.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const iface = new ethers.Interface(badgeAbi);
       const data = iface.encodeFunctionData("mint");
-      const txRequest = {
-        to: badgeAddress,
-        data,
-        value: "0x0"
-      };
-
-      const sdk = sdkRef.current;
-      if (sdk?.wallet?.switchChain) {
-        await sdk.wallet.switchChain({ chainId: targetChainId });
-      }
-      if (sdk?.wallet?.sendTransaction) {
-        const sent = await sdk.wallet.sendTransaction(txRequest);
-        const hash = typeof sent === "string" ? sent : sent?.hash;
-        await markProgressAsMinted(hash);
-        setTxHash(hash || null);
-        setProgress("NFT_MINTED");
-        setLoading(false);
-        return;
-      }
-
-      // Fallback to injected wallet (e.g., for local browser testing)
-      if (typeof window !== "undefined" && (window as any).ethereum) {
-        const provider = new ethers.BrowserProvider((window as any).ethereum);
-        const signer = await provider.getSigner();
-        const network = await provider.getNetwork();
-        if (network.chainId !== BigInt(targetChainId)) {
-          try {
-            await (window as any).ethereum.request({
-              method: "wallet_switchEthereumChain",
-              params: [{ chainId: "0x" + targetChainId.toString(16) }]
-            });
-          } catch (switchErr) {
-            console.warn("Chain switch failed", switchErr);
-          }
+      if (walletClient.chain?.id !== targetChainId) {
+        if (switchNetworkAsync) {
+          await switchNetworkAsync(targetChainId);
+        } else {
+          throw new Error(`Switch to ${targetChain.name} to mint.`);
         }
-        const tx = await signer.sendTransaction(txRequest);
-        const receipt = await tx.wait();
-        const hash = receipt?.hash || tx.hash;
-        await markProgressAsMinted(hash);
-        setTxHash(hash || null);
-        setProgress("NFT_MINTED");
-        setLoading(false);
-        return;
       }
-
-      setError("Wallet send not available in this environment.");
+      const hash = await walletClient.sendTransaction({
+        to: badgeAddress as `0x${string}`,
+        data: data as `0x${string}`,
+        value: 0n,
+        account: address as `0x${string}`,
+        chain: targetChain
+      });
+      await markProgressAsMinted(hash);
+      setTxHash(hash || null);
+      setProgress("NFT_MINTED");
     } catch (err) {
       console.error(err);
       setError((err as Error).message || "Mint failed");
@@ -251,7 +207,6 @@ export default function Home() {
     setProgress(data.progress.state);
     setTxHash(null);
     setRetry(false);
-    setConnectStatus(connectedAddress ? "connected" : "idle");
     setLoading(false);
   };
 
@@ -270,8 +225,8 @@ export default function Home() {
 
   const renderIntro = () => (
     <section>
-      <div className="eyebrow">Step 1 · Intro</div>
-      <h1>Welcome to Base 🟦</h1>
+      <div className="eyebrow">Step 1 ¶ú Intro</div>
+      <h1>Welcome to Base ÐYYÝ</h1>
       <p>
         Base is a fast, secure Ethereum Layer 2 built by Coinbase.
         <br />
@@ -287,8 +242,8 @@ export default function Home() {
     if (retry) {
       return (
         <section>
-          <div className="eyebrow">Step 2 · Quiz</div>
-          <h2>Not quite 😅 try again.</h2>
+          <div className="eyebrow">Step 2 ¶ú Quiz</div>
+          <h2>Not quite ÐY~. try again.</h2>
           <button onClick={() => setRetry(false)} disabled={loading}>
             Try Again
           </button>
@@ -297,7 +252,7 @@ export default function Home() {
     }
     return (
       <section>
-        <div className="eyebrow">Step 2 · Quiz</div>
+        <div className="eyebrow">Step 2 ¶ú Quiz</div>
         <h2>Base is built on which blockchain?</h2>
         <div className="grid">
           {quizOptions.map((opt) => (
@@ -312,26 +267,22 @@ export default function Home() {
 
   const renderMint = () => (
     <section>
-      <div className="eyebrow">Step 3 · Mint</div>
-      <h2>🎉 You Completed the Base Onboarding Journey!</h2>
+      <div className="eyebrow">Step 3 ¶ú Mint</div>
+      <h2>ÐYZ% You Completed the Base Onboarding Journey!</h2>
       <p>Mint your official Base Beginner Badge to commemorate your first step into Base.</p>
-      {!connectedAddress && (
+      {!primaryAddress && (
         <div className="banner">
           <div>
             <strong>Connect wallet</strong>
-            <div className="muted">Use Warpcast wallet or provide an address to receive the badge.</div>
+            <div className="muted">Use the Farcaster wallet connection to receive the badge.</div>
           </div>
-          <button className="ghost" onClick={handleConnectWallet} disabled={connectStatus === "connecting"}>
-            {connectStatus === "connecting" ? "Connecting..." : "Connect Wallet"}
+          <button className="ghost" onClick={handleConnectWallet} disabled={isBusyConnecting}>
+            {isBusyConnecting ? "Connecting..." : "Connect Wallet"}
           </button>
         </div>
       )}
-      <button onClick={handleMint} disabled={loading || !connectedAddress}>
-        {loading
-          ? "Minting..."
-          : connectedAddress
-          ? "Mint NFT"
-          : "Connect wallet to mint"}
+      <button onClick={handleMint} disabled={loading || !primaryAddress}>
+        {loading ? "Minting..." : primaryAddress ? "Mint NFT" : "Connect wallet to mint"}
       </button>
       {txHash && (
         <p className="muted">
@@ -347,7 +298,7 @@ export default function Home() {
   const renderSuccess = () => (
     <section>
       <div className="eyebrow">All done</div>
-      <h2>Mint Successful! 🎉</h2>
+      <h2>Mint Successful! ÐYZ%</h2>
       <div className="actions">
         <a className="linklike" href={shareUrl} target="_blank" rel="noreferrer noopener">
           Share on Farcaster
@@ -398,18 +349,15 @@ export default function Home() {
         <header>
           <div className="title">
             <span className="badge">Base Beginner Journey</span>
-            <span className="user">User: {userId || "…"}</span>
           </div>
           <div className="wallet">
-            {connectedAddress ? (
+            {primaryAddress && (
               <span className="connected">
-                Wallet: {connectedAddress.slice(0, 6)}...{connectedAddress.slice(-4)}
+                Wallet: {primaryAddress.slice(0, 6)}...{primaryAddress.slice(-4)}
               </span>
-            ) : (
-              <span className="connected muted">Wallet: not connected</span>
             )}
-            <button className="ghost" onClick={handleConnectWallet} disabled={connectStatus === "connecting"}>
-              {connectStatus === "connecting" ? "Connecting..." : connectedAddress ? "Reconnect" : "Connect Wallet"}
+            <button className="ghost" onClick={handleConnectWallet} disabled={isBusyConnecting}>
+              {isBusyConnecting ? "Connecting..." : primaryAddress ? "Reconnect" : "Connect Wallet"}
             </button>
           </div>
         </header>
