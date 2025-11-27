@@ -1,0 +1,46 @@
+{
+  "accountAssociation": {
+    "header": "eyJmaWQiOjYyMTY1NSwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDAwN2E2NjYwYmNFY2EwNDk0YTZGRTQyZDQzOGVlODJmMDE1QzNhNzcifQ",
+    "payload": "eyJkb21haW4iOiJtaW50b3JhLWR1c2t5LnZlcmNlbC5hcHAifQ",
+    "signature": "JCgcZNiqYQoNv9klT5e0JRshB3S+pLYCdaceMunGFe1rokHQ0kmkWGpE/XS62x0ux/un+8gHqcNqvvvH4/mE4Bw="
+  },
+  "frame": {
+    "version": "1",
+    "name": "Base Beginner Journey",
+    "iconUrl": "https://mintora-dusky.vercel.app/icon.svg",
+    "homeUrl": "https://mintora-dusky.vercel.app",
+    "splashImageUrl": "https://mintora-dusky.vercel.app/og.svg",
+    "splashBackgroundColor": "#0F4CFA",
+    "subtitle": "Learn Base basics and mint the badge",
+    "description": "Interactive Base onboarding with a quiz and an onchain Base Beginner Badge mint.",
+    "primaryCategory": "education",
+    "tags": ["base", "onboarding", "education", "nft", "quiz"],
+    "heroImageUrl": "https://mintora-dusky.vercel.app/og.svg",
+    "tagline": "Earn the Base Beginner Badge",
+    "ogTitle": "Base Beginner Journey",
+    "ogDescription": "Complete the Base onboarding path and mint your badge.",
+    "ogImageUrl": "https://mintora-dusky.vercel.app/og.svg",
+    "requiredChains": ["eip155:84532", "eip155:8453"],
+    "canonicalDomain": "mintora-dusky.vercel.app"
+  },
+  "miniapp": {
+    "version": "1",
+    "name": "Base Beginner Journey",
+    "iconUrl": "https://mintora-dusky.vercel.app/icon.svg",
+    "homeUrl": "https://mintora-dusky.vercel.app",
+    "splashImageUrl": "https://mintora-dusky.vercel.app/og.svg",
+    "splashBackgroundColor": "#0F4CFA",
+    "subtitle": "Learn Base basics and mint the badge",
+    "description": "Interactive Base onboarding with a quiz and an onchain Base Beginner Badge mint.",
+    "primaryCategory": "education",
+    "tags": ["base", "onboarding", "education", "nft", "quiz"],
+    "heroImageUrl": "https://mintora-dusky.vercel.app/og.svg",
+    "tagline": "Earn the Base Beginner Badge",
+    "ogTitle": "Base Beginner Journey",
+    "ogDescription": "Complete the Base onboarding path and mint your badge.",
+    "ogImageUrl": "https://mintora-dusky.vercel.app/og.svg",
+    "requiredChains": ["eip155:84532", "eip155:8453"],
+    "canonicalDomain": "mintora-dusky.vercel.app"
+  }
+}
+
