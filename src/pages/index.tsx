@@ -27,6 +27,7 @@ export default function Home() {
   const [retry, setRetry] = useState(false);
   const [farcasterSigner, setFarcasterSigner] = useState<string | null>(null);
   const autoConnectAttempted = useRef(false);
+  const addPromptShown = useRef(false);
 
   const { address, isConnecting: isAccountConnecting } = useAccount();
   const { connectAsync, connectors, isLoading: isConnectingWallet } = useConnect();
@@ -56,6 +57,21 @@ export default function Home() {
 
   useEffect(() => {
     fetchState();
+  }, []);
+
+  useEffect(() => {
+    const promptAddMiniApp = async () => {
+      if (addPromptShown.current) return;
+      try {
+        const inMiniApp = await sdk.isInMiniApp();
+        if (!inMiniApp) return;
+        addPromptShown.current = true;
+        await sdk.actions.addMiniApp();
+      } catch (err) {
+        console.warn("Add Mini App prompt skipped", err);
+      }
+    };
+    promptAddMiniApp();
   }, []);
 
   useEffect(() => {
