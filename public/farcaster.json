@@ -25,6 +25,9 @@
     "requiredChains": ["eip155:84532", "eip155:8453"],
     "canonicalDomain": "mintora-dusky.vercel.app"
   },
+  "baseBuilder": {
+    "ownerAddress": "0x4e507adaEd99397960B5B45f65645e4086d44eb6"
+  },
   "miniapp": {
     "version": "1",
     "name": "Base Beginner Journey",
