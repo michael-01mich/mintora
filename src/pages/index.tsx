@@ -18,6 +18,28 @@ const badgeAddress = process.env.NEXT_PUBLIC_BADGE_ADDRESS;
 const targetChainId = targetChain.id;
 
 const badgeAbi = ["function mint() public returns (uint256)"];
+const farcasterMiniAppPayload = {
+  version: "1",
+  imageUrl: "https://mintora-dusky.vercel.app/opengraph-image.png",
+  button: {
+    title: "Open Mintora",
+    action: {
+      type: "launch_miniapp",
+      url: "https://mintora-dusky.vercel.app/",
+      name: "Mintora",
+      splashImageUrl: "https://mintora-dusky.vercel.app/icon.png",
+      splashBackgroundColor: "#0b0b1f"
+    }
+  }
+}; // Canonical Farcaster Mini App embed payload for the root URL
+const farcasterMiniAppEmbed = JSON.stringify(farcasterMiniAppPayload); // Stringified embed for fc:miniapp
+const farcasterFrameEmbed = JSON.stringify({
+  ...farcasterMiniAppPayload,
+  button: {
+    ...farcasterMiniAppPayload.button,
+    action: { ...farcasterMiniAppPayload.button.action, type: "launch_frame" }
+  }
+}); // Backward-compatible Frame embed payload with launch_frame action
 
 export default function Home() {
   const [progress, setProgress] = useState<ProgressState>("NOT_STARTED");
@@ -380,6 +402,8 @@ export default function Home() {
           content="Interactive Base onboarding with a quiz and an onchain Base Beginner Badge mint."
         />
         <meta name="twitter:image" content="https://mintora-dusky.vercel.app/og.png" />
+        <meta name="fc:miniapp" content={farcasterMiniAppEmbed} />{/* Farcaster Mini App embed tag */}
+        <meta name="fc:frame" content={farcasterFrameEmbed} />{/* Backward-compatible Frame embed tag */}
       </Head>
       <main>
         <header>
