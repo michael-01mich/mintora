@@ -28,6 +28,10 @@ const nextConfig = {
       {
         source: "/screenshot1.png",
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }]
+      },
+      {
+        source: "/",
+        headers: [{ key: "Cache-Control", value: "public, s-maxage=600, stale-while-revalidate=3600" }]
       }
     ];
   }

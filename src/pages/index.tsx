@@ -361,7 +361,10 @@ export default function Home() {
       <Head>
         <title>Base Beginner Journey</title>
         <meta name="description" content="Complete the Base onboarding path and mint your Base Beginner Badge." />
+        <link rel="canonical" href="https://mintora-dusky.vercel.app" />
+        <link rel="alternate" type="application/json" href="https://mintora-dusky.vercel.app/.well-known/farcaster.json" />
         <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Base Beginner Journey" />
         <meta property="og:title" content="Base Beginner Journey" />
         <meta
           property="og:description"
@@ -370,6 +373,7 @@ export default function Home() {
         <meta property="og:image" content="https://mintora-dusky.vercel.app/og.png" />
         <meta property="og:url" content="https://mintora-dusky.vercel.app" />
         <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:site" content="@base" />
         <meta name="twitter:title" content="Base Beginner Journey" />
         <meta
           name="twitter:description"
