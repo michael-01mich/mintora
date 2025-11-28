@@ -360,6 +360,15 @@ export default function Home() {
     <>
       <Head>
         <title>Base Beginner Journey</title>
+        <meta name="description" content="Complete the Base onboarding path and mint your Base Beginner Badge." />
+        <meta property="og:title" content="Base Beginner Journey" />
+        <meta
+          property="og:description"
+          content="Interactive Base onboarding with a quiz and an onchain Base Beginner Badge mint."
+        />
+        <meta property="og:image" content="https://mintora-dusky.vercel.app/og.png" />
+        <meta property="og:url" content="https://mintora-dusky.vercel.app" />
+        <meta name="twitter:card" content="summary_large_image" />
       </Head>
       <main>
         <header>
