@@ -225,8 +225,8 @@ export default function Home() {
 
   const renderIntro = () => (
     <section>
-      <div className="eyebrow">Step 1 ¶ú Intro</div>
-      <h1>Welcome to Base ÐYYÝ</h1>
+      <div className="eyebrow">Step 1 · Intro</div>
+      <h1>Welcome to Base</h1>
       <p>
         Base is a fast, secure Ethereum Layer 2 built by Coinbase.
         <br />
@@ -242,8 +242,8 @@ export default function Home() {
     if (retry) {
       return (
         <section>
-          <div className="eyebrow">Step 2 ¶ú Quiz</div>
-          <h2>Not quite ÐY~. try again.</h2>
+          <div className="eyebrow">Step 2 · Quiz</div>
+          <h2>Not quite. Try again.</h2>
           <button onClick={() => setRetry(false)} disabled={loading}>
             Try Again
           </button>
@@ -252,7 +252,7 @@ export default function Home() {
     }
     return (
       <section>
-        <div className="eyebrow">Step 2 ¶ú Quiz</div>
+        <div className="eyebrow">Step 2 · Quiz</div>
         <h2>Base is built on which blockchain?</h2>
         <div className="grid">
           {quizOptions.map((opt) => (
@@ -267,8 +267,8 @@ export default function Home() {
 
   const renderMint = () => (
     <section>
-      <div className="eyebrow">Step 3 ¶ú Mint</div>
-      <h2>ÐYZ% You Completed the Base Onboarding Journey!</h2>
+      <div className="eyebrow">Step 3 · Mint</div>
+      <h2>You Completed the Base Onboarding Journey!</h2>
       <p>Mint your official Base Beginner Badge to commemorate your first step into Base.</p>
       {!primaryAddress && (
         <div className="banner">
@@ -298,7 +298,7 @@ export default function Home() {
   const renderSuccess = () => (
     <section>
       <div className="eyebrow">All done</div>
-      <h2>Mint Successful! ÐYZ%</h2>
+      <h2>Mint Successful!</h2>
       <div className="actions">
         <a className="linklike" href={shareUrl} target="_blank" rel="noreferrer noopener">
           Share on Farcaster
