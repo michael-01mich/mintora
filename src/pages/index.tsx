@@ -20,7 +20,7 @@ const targetChainId = targetChain.id;
 const badgeAbi = ["function mint() public returns (uint256)"];
 const farcasterMiniAppPayload = {
   version: "1",
-  imageUrl: "https://mintora-dusky.vercel.app/opengraph-image.png",
+  imageUrl: "https://mintora-dusky.vercel.app/opengraph-image.png", // 1200x800 (3:2) Farcaster preview
   button: {
     title: "Open Mintora",
     action: {
@@ -392,7 +392,7 @@ export default function Home() {
           property="og:description"
           content="Interactive Base onboarding with a quiz and an onchain Base Beginner Badge mint."
         />
-        <meta property="og:image" content="https://mintora-dusky.vercel.app/og.png" />
+        <meta property="og:image" content="https://mintora-dusky.vercel.app/opengraph-image.png" />
         <meta property="og:url" content="https://mintora-dusky.vercel.app" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:site" content="@base" />
@@ -401,7 +401,7 @@ export default function Home() {
           name="twitter:description"
           content="Interactive Base onboarding with a quiz and an onchain Base Beginner Badge mint."
         />
-        <meta name="twitter:image" content="https://mintora-dusky.vercel.app/og.png" />
+        <meta name="twitter:image" content="https://mintora-dusky.vercel.app/opengraph-image.png" />
         <meta name="fc:miniapp" content={farcasterMiniAppEmbed} />{/* Farcaster Mini App embed tag */}
         <meta name="fc:frame" content={farcasterFrameEmbed} />{/* Backward-compatible Frame embed tag */}
       </Head>
